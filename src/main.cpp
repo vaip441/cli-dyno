@@ -1,10 +1,14 @@
 #include <chrono>
-#include <conio.h>
 #include <cmath>
+#include <cstdio>
 #include <iostream>
 #include <string>
 #include <thread>
 #include <vector>
+
+#include <sys/select.h>
+#include <termios.h>
+#include <unistd.h>
 
 namespace {
 
@@ -88,12 +92,61 @@ void drawDino(std::vector<std::string>& buffer, const Dino& dino, bool runFrame)
     }
 }
 
+class TerminalRawMode {
+public:
+    TerminalRawMode() {
+        enabled_ = tcgetattr(STDIN_FILENO, &original_) == 0;
+        if (!enabled_) {
+            return;
+        }
+
+        termios raw = original_;
+        raw.c_lflag &= static_cast<unsigned long>(~(ICANON | ECHO));
+        raw.c_cc[VMIN] = 0;
+        raw.c_cc[VTIME] = 0;
+        if (tcsetattr(STDIN_FILENO, TCSANOW, &raw) != 0) {
+            enabled_ = false;
+        }
+    }
+
+    TerminalRawMode(const TerminalRawMode&) = delete;
+    TerminalRawMode& operator=(const TerminalRawMode&) = delete;
+
+    ~TerminalRawMode() {
+        if (enabled_) {
+            tcsetattr(STDIN_FILENO, TCSANOW, &original_);
+        }
+    }
+
+private:
+    termios original_{};
+    bool enabled_ = false;
+};
+
+bool keyAvailable() {
+    fd_set readSet;
+    FD_ZERO(&readSet);
+    FD_SET(STDIN_FILENO, &readSet);
+
+    timeval timeout{};
+    const int ready = select(STDIN_FILENO + 1, &readSet, nullptr, nullptr, &timeout);
+    if (ready <= 0) {
+        return false;
+    }
+
+    return true;
+}
+
+int readKey() {
+    return std::getchar();
+}
+
 void processInput(bool& running, Dino& dino) {
-    while (_kbhit()) {
-        const int key = _getch();
+    while (keyAvailable()) {
+        const int key = readKey();
         if (key == 'q' || key == 'Q') {
             running = false;
-        } else if (key == ' ' || key == 'w' || key == 'W' || key == 72) {
+        } else if (key == ' ' || key == 'w' || key == 'W') {
             dino.jump();
         }
     }
@@ -105,10 +158,10 @@ int main() {
     Dino dino;
     bool running = true;
     std::size_t frameCount = 0;
+    TerminalRawMode terminalRawMode;
 
     std::cout << "CLI Dino\n";
     std::cout << "Space/W to jump, Q to quit.\n";
-    std::this_thread::sleep_for(std::chrono::milliseconds(800));
 
     while (running) {
         const auto frameStart = std::chrono::steady_clock::now();

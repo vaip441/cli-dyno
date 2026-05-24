@@ -4,7 +4,6 @@
 
 A CLI clone of the Google Chrome dinosaur game, written in modern C++ with a clean multi-file layout suitable for a school project. The existing single-file foundation in `src/main.cpp` (dino physics, screen buffer, raw-mode input, game loop at ~22 fps) is refactored into well-bounded modules and extended with obstacles, collisions, scoring, game-over/restart, difficulty progression, birds with ducking, and a persisted high score.
 
-The source code contains no comments. The user will walk through the code verbally afterward.
 
 ## Scope
 
